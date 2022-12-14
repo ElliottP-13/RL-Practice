@@ -42,5 +42,5 @@ if __name__ == "__main__":
     critic1 = Networks.MLPQFunction(2, 1, (256,256), nn.ReLU)
     critic2 = Networks.MLPQFunction(2, 1, (256,256), nn.ReLU)
 
-    sac = SAC(actor, critic1, critic2, 2, 1)
-    sac.train(env, epochs=100000, duration=15, batch_size=500, update_every=50)
+    sac = SAC(actor, critic1, critic2, 2, 1, alpha="learn")
+    sac.train(env, epochs=10000, duration=15, batch_size=500, update_every=50)

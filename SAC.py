@@ -69,7 +69,13 @@ class SAC:
 
         self.buffer = ReplayBuffer(obs_size, action_size, buffer_size)
 
-        self.alpha = alpha
+        self.learn_alpha = isinstance(alpha, str)
+        if self.learn_alpha:
+            self.alpha = torch.tensor(0.3, dtype=torch.float32, requires_grad=True)  # some initial value, idk how to initialize
+            self.alpha_optim = None
+            self.target_entropy = -1.0 * action_size  # Anas set at this value, idk why
+        else:
+            self.alpha = alpha
 
         self.gamma = gamma
 
@@ -104,7 +110,11 @@ class SAC:
         loss = (-q + self.alpha * log_prob).mean()  # negative of loss function, to turn max into min
         # (for optimizer.step which assumes minimization)
 
-        return loss
+        alpha_loss = 0
+        if self.learn_alpha:
+            alpha_loss = -(self.alpha * (log_prob + self.target_entropy).detach()).mean()
+
+        return loss, alpha_loss
 
     def update(self, data, polyak=0.995):
         # First run one gradient descent step for Q1 and Q2
@@ -120,9 +130,14 @@ class SAC:
 
         # Next run one gradient descent step for pi.
         self.p_optim.zero_grad()
-        loss_pi = self.p_loss(data)
+        loss_pi, loss_alpha = self.p_loss(data)
         loss_pi.backward()
         self.p_optim.step()
+
+        if self.learn_alpha:
+            self.alpha_optim.zero_grad()
+            loss_alpha.backward()
+            self.alpha_optim.step()
 
         # Unfreeze Q-networks so you can optimize it at next step.
         for param in self.q_params:
@@ -160,6 +175,9 @@ class SAC:
 
         self.p_optim = torch.optim.Adam(self.current.actor.parameters(), lr=lr)
         self.q_optim = torch.optim.Adam(self.q_params, lr=lr)
+
+        if self.learn_alpha:
+            self.alpha_optim = torch.optim.Adam([self.alpha], lr=lr)
 
         self.current.actor.train()
 

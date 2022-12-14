@@ -6,7 +6,7 @@ from torch.optim import Adam
 import gym
 import time
 
-import MountainCarEnv
+import Spinup_MountainCarEnv as MountainCarEnv
 import core as core
 
 
