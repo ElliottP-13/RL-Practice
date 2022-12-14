@@ -5,6 +5,8 @@ import torch
 from torch.optim import Adam
 import gym
 import time
+
+import MountainCarEnv
 import core as core
 
 
@@ -259,6 +261,7 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
                       deterministic)
 
     def test_agent():
+        total = 0
         for j in range(num_test_episodes):
             o, d, ep_ret, ep_len = test_env.reset(), False, 0, 0
             while not (d or (ep_len == max_ep_len)):
@@ -266,6 +269,17 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
                 o, r, d, _ = test_env.step(get_action(o, True))
                 ep_ret += r
                 ep_len += 1
+
+                total += r
+        print(f"Test: {total/num_test_episodes}")
+
+    def debug_make_the_same():
+        ac.pi.load_state_dict(torch.load("../init_model_actor.pt"))
+        ac.q1.load_state_dict(torch.load("../init_model_critic1.pt"))
+        ac.q2.load_state_dict(torch.load("../init_model_critic2.pt"))
+
+        import pickle
+        return pickle.load(open("./data.pkl", "rb"))
 
     # Prepare for interaction with environment
     total_steps = steps_per_epoch * epochs
@@ -308,6 +322,7 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         if t >= update_after and t % update_every == 0:
             for j in range(update_every):
                 batch = replay_buffer.sample_batch(batch_size)
+                # batch = debug_make_the_same()
                 update(data=batch)
 
         # End of epoch handling
@@ -318,19 +333,23 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
             test_agent()
 
             # Log info about epoch
-            logger.log_tabular('Epoch', epoch)
-            logger.log_tabular('EpRet', with_min_and_max=True)
-            logger.log_tabular('TestEpRet', with_min_and_max=True)
-            logger.log_tabular('EpLen', average_only=True)
-            logger.log_tabular('TestEpLen', average_only=True)
-            logger.log_tabular('TotalEnvInteracts', t)
-            logger.log_tabular('Q1Vals', with_min_and_max=True)
-            logger.log_tabular('Q2Vals', with_min_and_max=True)
-            logger.log_tabular('LogPi', with_min_and_max=True)
-            logger.log_tabular('LossPi', average_only=True)
-            logger.log_tabular('LossQ', average_only=True)
-            logger.log_tabular('Time', time.time() - start_time)
-            logger.dump_tabular()
+            # logger.log_tabular('Epoch', epoch)
+            # logger.log_tabular('EpRet', with_min_and_max=True)
+            # logger.log_tabular('TestEpRet', with_min_and_max=True)
+            # logger.log_tabular('EpLen', average_only=True)
+            # logger.log_tabular('TestEpLen', average_only=True)
+            # logger.log_tabular('TotalEnvInteracts', t)
+            # logger.log_tabular('Q1Vals', with_min_and_max=True)
+            # logger.log_tabular('Q2Vals', with_min_and_max=True)
+            # logger.log_tabular('LogPi', with_min_and_max=True)
+            # logger.log_tabular('LossPi', average_only=True)
+            # logger.log_tabular('LossQ', average_only=True)
+            # logger.log_tabular('Time', time.time() - start_time)
+            # logger.dump_tabular()
+    x = input("Ready to see the final product?")
+    for _ in range(10):
+        test_env = MountainCarEnv.Continuous_MountainCarEnv(duration=100, render_mode="human", const_reward=False)
+        test_agent()
 
 
 if __name__ == '__main__':
@@ -348,6 +367,8 @@ if __name__ == '__main__':
 
     torch.set_num_threads(torch.get_num_threads())
 
-    sac(lambda: gym.make(args.env), actor_critic=core.MLPActorCritic,
+    env = MountainCarEnv.Continuous_MountainCarEnv(duration=100, render_mode="machine", const_reward=True)
+
+    sac(lambda: MountainCarEnv.Continuous_MountainCarEnv(duration=100, render_mode="machine", const_reward=False), actor_critic=core.MLPActorCritic,
         ac_kwargs=dict(hidden_sizes=[args.hid] * args.l),
         gamma=args.gamma, seed=args.seed, epochs=args.epochs)

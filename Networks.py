@@ -36,7 +36,12 @@ class SquashedGaussianMLPActor(nn.Module):
         self.log_std_layer = nn.Linear(hidden_sizes[-1], act_dim)
         self.act_limit = act_limit
 
-    def forward(self, obs):
+    def forward(self, obs: torch.Tensor):
+        f = False
+        if obs.dim() == 1:  # just one dimensional
+            obs = obs.unsqueeze(0)  # expand
+            f = True
+
         net_out = self.net(obs)
         mu = self.mu_layer(net_out)
         log_std = self.log_std_layer(net_out)
@@ -60,14 +65,16 @@ class SquashedGaussianMLPActor(nn.Module):
             # of where it comes from, check out the original SAC paper (arXiv 1801.01290)
             # and look in appendix C. This is a more numerically-stable equivalent to Eq 21.
             # Try deriving it yourself as a (very difficult) exercise. :)
-            logp_pi = pi_distribution.log_prob(pi_action).sum(axis=-1, keepdims=True)
-            logp_pi -= (2*(np.log(2) - pi_action - F.softplus(-2*pi_action))).sum(axis=0)
+            logp_pi = pi_distribution.log_prob(pi_action).sum(axis=-1)
+            logp_pi -= (2*(np.log(2) - pi_action - F.softplus(-2*pi_action))).sum(axis=1)
 
             # logp_pi = pi_distribution.log_prob(pi_action) - torch.log(1 - u.pow(2) + 1E-6)
             # logp_pi = logp_pi.sum(dim=-1, keepdim=True)
         else:
             logp_pi = None
 
+        if f:
+            return u[0], logp_pi[0]  # get rid of the extra dimension we added
         return u, logp_pi
 
 
