@@ -1,7 +1,7 @@
 import gym
 import torch
 from torch import nn
-
+import wandb
 import MountainCarEnv
 import Networks
 from SAC import SAC
@@ -36,11 +36,13 @@ if __name__ == "__main__":
 
     # exit()
 
+    wandb.init(name='testing')
+
     observation, info = env.reset(seed=42)
 
-    actor = Networks.SquashedGaussianMLPActor(2, 1, (256,256), nn.ReLU, 3)
-    critic1 = Networks.MLPQFunction(2, 1, (256,256), nn.ReLU)
-    critic2 = Networks.MLPQFunction(2, 1, (256,256), nn.ReLU)
+    actor = Networks.SquashedGaussianMLPActor(2, 1, (16,16), nn.ReLU, 0.5)
+    critic1 = Networks.MLPQFunction(2, 1, (16,16), nn.ReLU)
+    critic2 = Networks.MLPQFunction(2, 1, (16,16), nn.ReLU)
 
-    sac = SAC(actor, critic1, critic2, 2, 1, alpha="learn")
-    sac.train(env, epochs=10000, duration=15, batch_size=500, update_every=50)
+    sac = SAC(actor, critic1, critic2, 2, 1, alpha="learn", buffer_size=1e6)
+    sac.train(env, epochs=10000, duration=15, batch_size=500, update_every=50, polyak=0.995, log=True)

@@ -109,8 +109,8 @@ class Continuous_MountainCarEnv(gym.Env):
         self.duration = duration
         self.const_reward = const_reward
 
-        self.min_action = -1.0
-        self.max_action = 1.0
+        self.min_action = -0.5
+        self.max_action = 0.5
         self.min_position = -1.2
         self.max_position = 1
         self.max_speed = 0.07
@@ -171,8 +171,8 @@ class Continuous_MountainCarEnv(gym.Env):
         if terminated:
             reward = self.cont_reward
         if self.const_reward:
-            reward = - abs(position - self.goal_position)
-        self.cont_reward -= abs(position - self.goal_position)
+            reward = - ((position - self.goal_position)**2)
+        self.cont_reward -= abs(position - self.goal_position) ** 2
 
         self.state = np.array([position, velocity], dtype=np.float32)
 
@@ -180,6 +180,9 @@ class Continuous_MountainCarEnv(gym.Env):
             self.render()
 
         self.t += 1
+
+        if self.render_mode == "rgb_array":
+            return self.state, reward, terminated, False, {'frame': self.render()}
 
         return self.state, reward, terminated, False, {}
 
@@ -192,9 +195,14 @@ class Continuous_MountainCarEnv(gym.Env):
                                round(self.np_random.uniform(-0.1, 0.1), 3)])  # velocity
         self.t = 0
         self.cont_reward = 0
+        self.screen = None  # get rid of old screen
 
         if self.render_mode == "human":
             self.render()
+
+        if self.render_mode == "rgb_array":
+            return np.array(self.state, dtype=np.float32), {'frame': self.render()}
+
         return np.array(self.state, dtype=np.float32), {}
 
     def _height(self, xs):
@@ -300,7 +308,7 @@ class Continuous_MountainCarEnv(gym.Env):
 
         elif self.render_mode == "rgb_array":
             return np.transpose(
-                np.array(pygame.surfarray.pixels3d(self.screen)), axes=(1, 0, 2)
+                np.array(pygame.surfarray.pixels3d(self.screen)), axes=(2, 1, 0)
             )
 
     def close(self):

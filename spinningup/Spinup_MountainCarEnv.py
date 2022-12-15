@@ -172,7 +172,7 @@ class Continuous_MountainCarEnv(gym.Env):
             reward = self.cont_reward
         if self.const_reward:
             reward = - abs(position - self.goal_position)
-        self.cont_reward -= abs(position - self.goal_position)
+        self.cont_reward -= abs(position - self.goal_position)  ** 2
 
         self.state = np.array([position, velocity], dtype=np.float32)
 
