@@ -36,7 +36,7 @@ class SquashedGaussianMLPActor(nn.Module):
         self.log_std_layer = nn.Linear(hidden_sizes[-1], act_dim)
         self.act_limit = act_limit
 
-    def forward(self, obs: torch.Tensor):
+    def forward(self, obs: torch.Tensor, metrics=False):
         f = False
         if obs.dim() == 1:  # just one dimensional
             obs = obs.unsqueeze(0)  # expand
@@ -59,22 +59,14 @@ class SquashedGaussianMLPActor(nn.Module):
         u = torch.tanh(pi_action)
         u = self.act_limit * u
 
-        if True:
-            # Compute logprob from Gaussian, and then apply correction for Tanh squashing.
-            # NOTE: The correction formula is a little bit magic. To get an understanding
-            # of where it comes from, check out the original SAC paper (arXiv 1801.01290)
-            # and look in appendix C. This is a more numerically-stable equivalent to Eq 21.
-            # Try deriving it yourself as a (very difficult) exercise. :)
-            logp_pi = pi_distribution.log_prob(pi_action).sum(axis=-1)
-            logp_pi -= (2*(np.log(2) - pi_action - F.softplus(-2*pi_action))).sum(axis=1)
-
-            # logp_pi = pi_distribution.log_prob(pi_action) - torch.log(1 - u.pow(2) + 1E-6)
-            # logp_pi = logp_pi.sum(dim=-1, keepdim=True)
-        else:
-            logp_pi = None
+        logp_pi = pi_distribution.log_prob(pi_action).sum(axis=-1)
+        logp_pi -= (2 * (np.log(2) - pi_action - F.softplus(-2 * pi_action))).sum(axis=1)
 
         if f:
             return u[0], logp_pi[0]  # get rid of the extra dimension we added
+
+        if metrics:
+            return u, logp_pi, {'mu': mu.detach().mean(), 'std': std.detach().mean()}
         return u, logp_pi
 
 

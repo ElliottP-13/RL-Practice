@@ -274,9 +274,14 @@ def sac(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
         print(f"Test: {total/num_test_episodes}")
 
     def debug_make_the_same():
+        torch.manual_seed(0)
         ac.pi.load_state_dict(torch.load("../init_model_actor.pt"))
         ac.q1.load_state_dict(torch.load("../init_model_critic1.pt"))
         ac.q2.load_state_dict(torch.load("../init_model_critic2.pt"))
+
+        ac_targ.pi.load_state_dict(torch.load("../init_model_actor.pt"))
+        ac_targ.q1.load_state_dict(torch.load("../init_model_critic1.pt"))
+        ac_targ.q2.load_state_dict(torch.load("../init_model_critic2.pt"))
 
         import pickle
         return pickle.load(open("./data.pkl", "rb"))
@@ -369,6 +374,7 @@ if __name__ == '__main__':
 
     env = MountainCarEnv.Continuous_MountainCarEnv(duration=100, render_mode="machine", const_reward=True)
 
-    sac(lambda: MountainCarEnv.Continuous_MountainCarEnv(duration=100, render_mode="machine", const_reward=False), actor_critic=core.MLPActorCritic,
+    sac(lambda: MountainCarEnv.Continuous_MountainCarEnv(duration=100, render_mode="machine", const_reward=True), actor_critic=core.MLPActorCritic,
         ac_kwargs=dict(hidden_sizes=[args.hid] * args.l),
-        gamma=args.gamma, seed=args.seed, epochs=args.epochs)
+        gamma=args.gamma, seed=args.seed, epochs=25,
+        update_every=5000)

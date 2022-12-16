@@ -27,7 +27,7 @@ def eval(env: gym.Env, duration):
 
 
 if __name__ == "__main__":
-    env = MountainCarEnv.Continuous_MountainCarEnv(duration=100, render_mode="machine", const_reward=False)
+    env = MountainCarEnv.Continuous_MountainCarEnv(duration=100, render_mode="machine", const_reward=True)
     print("Hello World!")
 
     env.action_space.seed(42)
@@ -36,13 +36,13 @@ if __name__ == "__main__":
 
     # exit()
 
-    wandb.init(name='testing')
+    wandb.init(name='testing2', config={'gamma': 0.99, 'continuous_reward': True})
 
     observation, info = env.reset(seed=42)
 
-    actor = Networks.SquashedGaussianMLPActor(2, 1, (16,16), nn.ReLU, 0.5)
-    critic1 = Networks.MLPQFunction(2, 1, (16,16), nn.ReLU)
-    critic2 = Networks.MLPQFunction(2, 1, (16,16), nn.ReLU)
+    actor = Networks.SquashedGaussianMLPActor(2, 1, (256,256), nn.ReLU, 1)
+    critic1 = Networks.MLPQFunction(2, 1, (256,256), nn.ReLU)
+    critic2 = Networks.MLPQFunction(2, 1, (256,256), nn.ReLU)
 
-    sac = SAC(actor, critic1, critic2, 2, 1, alpha="learn", buffer_size=1e6)
-    sac.train(env, epochs=10000, duration=15, batch_size=500, update_every=50, polyak=0.995, log=True)
+    sac = SAC(actor, critic1, critic2, 2, 1, alpha=0.2, buffer_size=1e6, gamma=0.99)
+    sac.train(env, epochs=25*40, batch_size=100, update_every=50, polyak=0.995, log=True)

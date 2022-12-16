@@ -98,12 +98,14 @@ class SAC:
         l1 = torch.pow(self.current.critic1(state, action) - y, 2).mean()
         l2 = torch.pow(self.current.critic2(state, action) - y, 2).mean()
 
-        return l1 + l2, {'critic1-loss':l1, 'critic2-loss':l2}  # expected value = (l1 + l2)/2, but we don't need to divide by 2
+        return l1 + l2, {'critic1-loss':l1, 'critic2-loss':l2, 'target':y.mean(),
+                         'q1': self.current.critic1(state, action).mean(),
+                         'q2': self.current.critic2(state, action).mean()}  # expected value = (l1 + l2)/2, but we don't need to divide by 2
 
     def p_loss(self, batch):
         state = batch['state']
 
-        action, log_prob = self.current.actor(state)
+        action, log_prob, action_logs = self.current.actor(state, metrics=True)
         q1 = self.current.critic1(state, action)
         q2 = self.current.critic2(state, action)
         q = torch.min(q1, q2)
@@ -115,7 +117,7 @@ class SAC:
         if self.learn_alpha:
             alpha_loss = -(self.alpha * (log_prob + self.target_entropy).detach()).mean()
 
-        return loss, alpha_loss
+        return loss, alpha_loss, {'q-vals': q.detach().mean(), 'log_probs': log_prob.detach().mean(), 'actor': action_logs}
 
     def update(self, data, polyak=0.995):
         logs = {}
@@ -135,12 +137,14 @@ class SAC:
 
         # Next run one gradient descent step for pi.
         self.p_optim.zero_grad()
-        loss_pi, loss_alpha = self.p_loss(data)
+        loss_pi, loss_alpha, p_logs = self.p_loss(data)
         loss_pi.backward()
         self.p_optim.step()
 
         logs['p_loss'] = loss_pi
         logs['alpha_loss'] = loss_alpha
+        logs['alpha'] = self.alpha
+        logs['p_logs'] = p_logs
 
         if self.learn_alpha:
             self.alpha_optim.zero_grad()
@@ -165,9 +169,9 @@ class SAC:
 
         return logs
 
-    def eval(self, env: gym.Env, duration, mode='rgb_array'):
+    def eval(self, env: gym.Env, mode='rgb_array'):
         state, _ = env.reset()
-        self.current.actor.eval()
+        self.current.actor.eval()  # put it in eval mode, so actions are deterministic
         env.render_mode = mode
         total = 0
 
@@ -188,9 +192,10 @@ class SAC:
                 break
 
         env.render_mode = "machine"
+        self.current.actor.train()  # put it back into training mode
         return total, np.array(frames)
 
-    def train(self, env: gym.Env, epochs, duration=96, update_every=50, lr=1e-3, batch_size=96, polyak=0.995,
+    def train(self, env: gym.Env, epochs, update_every=50, lr=1e-3, batch_size=96, polyak=0.995,
               log=False):
         print('training')
 
@@ -213,30 +218,32 @@ class SAC:
 
                 next_state, reward, done, _, _ = env.step(a)
 
-                to_store.append((state, a, next_state, done))
+                # to_store.append((state, a, next_state, done))
 
-                # self.buffer.store(state, a, reward, next_state, done)
+                self.buffer.store(state, a, reward, next_state, done)
 
                 state = next_state
 
+                total_reward += reward  # add reward for this game
                 if done:
                     break
 
-            total_reward += reward  # add reward for this game
-            for tup in to_store:  # give the entire state,action sequence the reward we get at the end
-                assert reward != 0
-                state, a, next_state, done = tup
-                self.buffer.store(state, a, reward, next_state, done)
+
+            # for tup in to_store:  # give the entire state,action sequence the reward we get at the end
+            #     assert reward != 0
+            #     state, a, next_state, done = tup
+            #     self.buffer.store(state, a, reward, next_state, done)
 
             if epoch % update_every == 0:
-                for _ in range(update_every):
+                for _ in range(update_every * 100):
                     b = self.buffer.sample_batch(batch_size=batch_size)
+                    # b = self.debug_make_the_same()
                     update_logs = self.update(b, polyak=polyak)
 
-                test_reward, video = self.eval(env, duration, mode='rgb_array' if log else 'machine')
+                test_reward, video = self.eval(env, mode='rgb_array' if log else 'machine')
 
                 # log the average training reward, single episode test reward, loss metrics from _last_ update step
-                logs = {"train-reward": total_reward/epochs, "test-reward": test_reward, "update": update_logs}
+                logs = {"train-reward": total_reward/update_every, "test-reward": test_reward, "update": update_logs}
                 if video.any():
                     logs['video'] = wandb.Video(video, fps=10)
 
@@ -248,12 +255,12 @@ class SAC:
 
                 total_reward = 0
 
-            pass
         x = input("Ready to see the final product?")
-        for _ in range(10):
-            self.eval(env, duration=100, mode="human")
+        for _ in range(3):
+            self.eval(env, mode="human")
 
     def debug_make_the_same(self):
+        torch.manual_seed(0)
         self.current.actor.load_state_dict(torch.load("./init_model_actor.pt"))
         self.current.critic1.load_state_dict(torch.load("./init_model_critic1.pt"))
         self.current.critic2.load_state_dict(torch.load("./init_model_critic2.pt"))
