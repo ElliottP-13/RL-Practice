@@ -218,9 +218,9 @@ class SAC:
 
                 next_state, reward, done, _, _ = env.step(a)
 
-                # to_store.append((state, a, next_state, done))
+                to_store.append((state, a, next_state, done))
 
-                self.buffer.store(state, a, reward, next_state, done)
+                # self.buffer.store(state, a, reward, next_state, done)
 
                 state = next_state
 
@@ -228,11 +228,10 @@ class SAC:
                 if done:
                     break
 
-
-            # for tup in to_store:  # give the entire state,action sequence the reward we get at the end
-            #     assert reward != 0
-            #     state, a, next_state, done = tup
-            #     self.buffer.store(state, a, reward, next_state, done)
+            for tup in to_store:  # give the entire state,action sequence the reward we get at the end
+                assert reward != 0
+                state, a, next_state, done = tup
+                self.buffer.store(state, a, reward, next_state, done)
 
             if epoch % update_every == 0:
                 for _ in range(update_every * 100):
@@ -255,9 +254,11 @@ class SAC:
 
                 total_reward = 0
 
-        x = input("Ready to see the final product?")
-        for _ in range(3):
-            self.eval(env, mode="human")
+        eval_reward = 0
+        for _ in range(10):
+            r, _ = self.eval(env, mode="machine")
+            eval_reward += r
+        return eval_reward
 
     def debug_make_the_same(self):
         torch.manual_seed(0)

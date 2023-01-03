@@ -27,22 +27,24 @@ def eval(env: gym.Env, duration):
 
 
 if __name__ == "__main__":
-    env = MountainCarEnv.Continuous_MountainCarEnv(duration=100, render_mode="machine", const_reward=True)
+    env = MountainCarEnv.Continuous_MountainCarEnv(duration=100, render_mode="machine", const_reward=False)
     print("Hello World!")
 
     env.action_space.seed(42)
 
-    # eval(env, 100)
+    final_rewards = []
+    for trial in range(5):
+        wandb.init(name=f'evals_{trial}', config={'gamma': 0.99, 'continuous_reward': False, 'single_reward': False})
 
-    # exit()
+        observation, info = env.reset(seed=42)
 
-    wandb.init(name='testing2', config={'gamma': 0.99, 'continuous_reward': True})
+        actor = Networks.SquashedGaussianMLPActor(2, 1, (256,256), nn.ReLU, 1)
+        critic1 = Networks.MLPQFunction(2, 1, (256,256), nn.ReLU)
+        critic2 = Networks.MLPQFunction(2, 1, (256,256), nn.ReLU)
 
-    observation, info = env.reset(seed=42)
-
-    actor = Networks.SquashedGaussianMLPActor(2, 1, (256,256), nn.ReLU, 1)
-    critic1 = Networks.MLPQFunction(2, 1, (256,256), nn.ReLU)
-    critic2 = Networks.MLPQFunction(2, 1, (256,256), nn.ReLU)
-
-    sac = SAC(actor, critic1, critic2, 2, 1, alpha=0.2, buffer_size=1e6, gamma=0.99)
-    sac.train(env, epochs=25*40, batch_size=100, update_every=50, polyak=0.995, log=True)
+        sac = SAC(actor, critic1, critic2, 2, 1, alpha='learn', buffer_size=1e6, gamma=0.99)
+        r = sac.train(env, epochs=25*80, batch_size=100, update_every=50, polyak=0.995, log=True)
+        final_rewards.append(r)
+        wandb.finish()
+    with open("many_reward2.results", 'a') as f:
+        f.write(f"{str(final_rewards)}\n")
